@@ -1,1 +1,5 @@
 /data
+/.venv
+/downloaded_media
+__pycache__/
+*.pyc

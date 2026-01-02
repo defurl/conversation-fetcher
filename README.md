@@ -4,10 +4,11 @@ Tools to scrape a Messenger thread in the browser, keep memory in check, and pro
 
 ## Quick start
 1) Open the target Messenger thread in a desktop browser. Open DevTools Console and paste the contents of `scripts/js/v10_row_prune_collector.js`, then click inside the message pane and click the red STOP button to start. Batches (`messenger_row_part_*.json`) will download as you scroll.
-2) Place downloaded parts under `data/raw/batchN/` (one folder per run). From repo root run:
-   - `./.venv/Scripts/python.exe scripts/py/v10_stitch_rows.py`
-   - `./.venv/Scripts/python.exe scripts/py/v11_clean_rows.py`
-3) Find stitched rows at `data/processed/final_rows.json` and cleaned, grouped chat at `data/processed/v11_final_clean_rows.json`.
+2) Place downloaded parts under `data/raw/batchN/` (one folder per run).
+3) From repo root, stitch and clean:
+  - Windows: `./.venv/Scripts/python.exe scripts/py/v10_stitch_rows.py` then `./.venv/Scripts/python.exe scripts/py/v11_clean_rows.py`
+  - macOS/Linux: `python3 scripts/py/v10_stitch_rows.py` then `python3 scripts/py/v11_clean_rows.py`
+4) Stitched rows land at `data/processed/final_rows.json`; cleaned, grouped chat at `data/processed/v11_final_clean_rows.json`.
 
 ## How the JS collector works
 - **Container detection**: Finds the scrollable message list from the click target (or the Messenger pagelet) and records its bounding box.
