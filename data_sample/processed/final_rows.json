@@ -1,0 +1,80 @@
+[
+  {
+    "sender": "Partner",
+    "content": "Partner Name\nHello! This is a sample message.\nEnter",
+    "media_urls": [],
+    "source_file": "batch1\\messenger_row_part_1.json",
+    "batch": "batch1",
+    "part": 1,
+    "index": 0
+  },
+  {
+    "sender": "You",
+    "content": "You sent\nHi there! This is my reply.\nEnter",
+    "media_urls": [],
+    "source_file": "batch1\\messenger_row_part_1.json",
+    "batch": "batch1",
+    "part": 1,
+    "index": 1
+  },
+  {
+    "sender": "Partner",
+    "content": "Partner Name\nHere's a message with an image attachment.\nEnter",
+    "media_urls": [
+      "https://scontent.example.com/v/sample_image.jpg?_nc_cat=1&ccb=1-7"
+    ],
+    "source_file": "batch1\\messenger_row_part_1.json",
+    "batch": "batch1",
+    "part": 1,
+    "index": 2
+  },
+  {
+    "sender": "You",
+    "content": "You sent\nCool! Here's a sticker.\nEnter",
+    "media_urls": [
+      "https://scontent.example.com/v/sticker.png?_nc_cat=1"
+    ],
+    "source_file": "batch1\\messenger_row_part_1.json",
+    "batch": "batch1",
+    "part": 1,
+    "index": 3
+  },
+  {
+    "sender": "Partner",
+    "content": "27 Dec 2025\n27/12/2025, 15:30\nPartner Name\nThis message has a timestamp in the raw text.\nEnter",
+    "media_urls": [],
+    "source_file": "batch1\\messenger_row_part_1.json",
+    "batch": "batch1",
+    "part": 1,
+    "index": 4
+  },
+  {
+    "sender": "You",
+    "content": "You sent\nAnother batch of messages starts here.\nEnter",
+    "media_urls": [],
+    "source_file": "batch1\\messenger_row_part_2.json",
+    "batch": "batch1",
+    "part": 2,
+    "index": 0
+  },
+  {
+    "sender": "Partner",
+    "content": "Partner Name replied to you\nOriginal message:\nAnother batch of messages\nYes I see!\nEnter",
+    "media_urls": [],
+    "source_file": "batch1\\messenger_row_part_2.json",
+    "batch": "batch1",
+    "part": 2,
+    "index": 1
+  },
+  {
+    "sender": "You",
+    "content": "You sent\nGreat!\nEnter",
+    "media_urls": [
+      "https://static.xx.fbcdn.net/images/emoji.php/v9/t0/1/16/1f60a.png"
+    ],
+    "source_file": "batch1\\messenger_row_part_2.json",
+    "batch": "batch1",
+    "part": 2,
+    "index": 2
+  }
+]

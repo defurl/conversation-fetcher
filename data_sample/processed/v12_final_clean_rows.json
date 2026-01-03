@@ -1,0 +1,56 @@
+[
+    {
+        "timestamp": "Unknown Time",
+        "sender": "Partner Name",
+        "content": "Hello! This is a sample message.",
+        "type": "text"
+    },
+    {
+        "timestamp": "Unknown Time",
+        "sender": "You",
+        "content": "Hi there! This is my reply.",
+        "type": "text"
+    },
+    {
+        "timestamp": "Unknown Time",
+        "sender": "Partner Name",
+        "content": "Here's a message with an image attachment.",
+        "type": "text",
+        "attachments": [
+            "https://scontent.example.com/v/sample_image.jpg?_nc_cat=1&ccb=1-7"
+        ]
+    },
+    {
+        "timestamp": "Unknown Time",
+        "sender": "You",
+        "content": "Cool! Here's a sticker.",
+        "type": "text",
+        "attachments": [
+            "https://scontent.example.com/v/sticker.png?_nc_cat=1"
+        ]
+    },
+    {
+        "timestamp": "27 Dec 2025, 15:30",
+        "sender": "Partner Name",
+        "content": "This message has a timestamp in the raw text.",
+        "type": "text"
+    },
+    {
+        "timestamp": "27 Dec 2025, 15:30",
+        "sender": "You",
+        "content": "Another batch of messages starts here.",
+        "type": "text"
+    },
+    {
+        "timestamp": "27 Dec 2025, 15:30",
+        "sender": "Partner Name",
+        "content": "Yes I see!",
+        "type": "text"
+    },
+    {
+        "timestamp": "27 Dec 2025, 15:30",
+        "sender": "You",
+        "content": "Great!",
+        "type": "text"
+    }
+]

@@ -1,0 +1,41 @@
+[
+  {
+    "y": 133,
+    "sender": "Partner",
+    "raw_text": "Partner Name\nHello! This is a sample message.\nEnter",
+    "media_urls": [],
+    "ts": 1767387670451
+  },
+  {
+    "y": 170,
+    "sender": "You",
+    "raw_text": "You sent\nHi there! This is my reply.\nEnter",
+    "media_urls": [],
+    "ts": 1767387670452
+  },
+  {
+    "y": 207,
+    "sender": "Partner",
+    "raw_text": "Partner Name\nHere's a message with an image attachment.\nEnter",
+    "media_urls": [
+      "https://scontent.example.com/v/sample_image.jpg?_nc_cat=1&ccb=1-7"
+    ],
+    "ts": 1767387670453
+  },
+  {
+    "y": 244,
+    "sender": "You",
+    "raw_text": "You sent\nCool! Here's a sticker.\nEnter",
+    "media_urls": [
+      "https://scontent.example.com/v/sticker.png?_nc_cat=1"
+    ],
+    "ts": 1767387670454
+  },
+  {
+    "y": 281,
+    "sender": "Partner",
+    "raw_text": "27 Dec 2025\n27/12/2025, 15:30\nPartner Name\nThis message has a timestamp in the raw text.\nEnter",
+    "media_urls": [],
+    "ts": 1767387670455
+  }
+]

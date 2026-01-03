@@ -1,0 +1,25 @@
+[
+  {
+    "y": 290,
+    "sender": "You",
+    "raw_text": "You sent\nAnother batch of messages starts here.\nEnter",
+    "media_urls": [],
+    "ts": 1767387670456
+  },
+  {
+    "y": 327,
+    "sender": "Partner",
+    "raw_text": "Partner Name replied to you\nOriginal message:\nAnother batch of messages\nYes I see!\nEnter",
+    "media_urls": [],
+    "ts": 1767387670457
+  },
+  {
+    "y": 364,
+    "sender": "You",
+    "raw_text": "You sent\nGreat!\nEnter",
+    "media_urls": [
+      "https://static.xx.fbcdn.net/images/emoji.php/v9/t0/1/16/1f60a.png"
+    ],
+    "ts": 1767387670458
+  }
+]
