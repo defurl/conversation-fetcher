@@ -3,15 +3,23 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
+// 
+// v12.1 TUNING: Adjusted to capture more content (was missing ~13% vs v10)
+// - Reduced scroll amount from 90% to 75% for more overlap coverage
+// - Increased base speed from 800ms to 1000ms for more loading time
+// - Made stall detection less sensitive (threshold 20px instead of 10px)
+// - Added EXTRA_CAPTURE_PASSES to scan viewport multiple times per cycle
 (function () {
   // === CONFIGURATION ===
-  const BASE_SPEED_MS = 800;      // Faster base speed for responsive areas
-  const MAX_SPEED_MS = 5000;      // Maximum wait when content loads slowly
-  const SPEED_INCREMENT = 500;    // Increase per stall detection
-  const SPEED_DECREMENT = 200;    // Decrease when content flows
-  const SCROLL_AMOUNT = 0.9;
+  const BASE_SPEED_MS = 1000;     // Slightly slower for better content loading
+  const MAX_SPEED_MS = 6000;      // Increased max for very slow loading
+  const SPEED_INCREMENT = 400;    // Smaller increments for smoother adjustment
+  const SPEED_DECREMENT = 150;    // Slower speed-up to avoid missing content
+  const SCROLL_AMOUNT = 0.75;     // Reduced from 0.9 for more overlap coverage
+  const STALL_THRESHOLD_PX = 20;  // More lenient stall detection (was 10)
+  const EXTRA_CAPTURE_PASSES = 1; // Extra viewport scans per cycle (0 = disabled)
   const BATCH_SIZE = 50;
-  const PRUNE_PX = 300;           // More aggressive than v10 (was 500)
+  const PRUNE_PX = 400;           // Slightly less aggressive (was 300)
   const CAPTURE_MEDIA = true;
   const STRIP_MEDIA_ALWAYS = true;
   const USE_MUTATION_OBSERVER = true;
@@ -36,7 +44,7 @@
     const skipRate = (totalCaptured + totalSkipped) > 0 ? ((totalSkipped / (totalCaptured + totalSkipped)) * 100).toFixed(1) : '0';
     const speedColor = currentSpeed <= BASE_SPEED_MS ? '#0f0' : currentSpeed >= MAX_SPEED_MS ? '#f00' : '#ff0';
     const stallColor = stallCount === 0 ? '#0f0' : stallCount < 3 ? '#ff0' : '#f00';
-    
+
     const html = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">
         <span>⏱️ Speed:</span><span style="color:${speedColor}">${currentSpeed}ms</span>
@@ -51,7 +59,7 @@
         <span>🔁 Cycle:</span><span>${cycle}</span>
       </div>
       ${mem ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
-        <span>🧠 Heap:</span> <span style="color:${mem.usedJSHeapSize/mem.jsHeapSizeLimit > 0.7 ? '#f00' : '#0f0'}">${(mem.usedJSHeapSize/1048576).toFixed(0)}MB</span> / ${(mem.totalJSHeapSize/1048576).toFixed(0)}MB
+        <span>🧠 Heap:</span> <span style="color:${mem.usedJSHeapSize / mem.jsHeapSizeLimit > 0.7 ? '#f00' : '#0f0'}">${(mem.usedJSHeapSize / 1048576).toFixed(0)}MB</span> / ${(mem.totalJSHeapSize / 1048576).toFixed(0)}MB
       </div>` : ''}
     `;
     document.getElementById('diag-content').innerHTML = html;
@@ -125,8 +133,8 @@
 
   function adjustSpeed() {
     const topY = getTopVisibleRowY();
-    
-    if (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) < 10) {
+
+    if (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) < STALL_THRESHOLD_PX) {
       // Stalled - same position, content not loading
       stallCount++;
       const oldSpeed = currentSpeed;
@@ -144,7 +152,7 @@
         console.log(`%c✅ RECOVERED%c: Content flowing. Speed: ${oldSpeed}ms → ${currentSpeed}ms`, 'color:#0f0;font-weight:bold', 'color:#888');
       }
     }
-    
+
     lastTopRowY = topY;
     updateDiagPanel();
   }
@@ -153,7 +161,7 @@
     if (!STRIP_MEDIA_ALWAYS) return;
     containerNode.querySelectorAll('img').forEach((img) => {
       if (img.src && img.src.startsWith('blob:')) {
-        try { URL.revokeObjectURL(img.src); } catch (e) {}
+        try { URL.revokeObjectURL(img.src); } catch (e) { }
       }
       img.removeAttribute('src');
       img.removeAttribute('srcset');
@@ -162,14 +170,14 @@
       const bg = el.style ? el.style.backgroundImage || '' : '';
       const match = bg.match(/url\(['"]?(.*?)['"]?\)/i);
       if (match && match[1] && match[1].startsWith('blob:')) {
-        try { URL.revokeObjectURL(match[1]); } catch (e) {}
+        try { URL.revokeObjectURL(match[1]); } catch (e) { }
       }
       if (el.style) el.style.backgroundImage = 'none';
     });
     containerNode.querySelectorAll('video,source').forEach((el) => {
       const src = el.getAttribute('src');
       if (src && src.startsWith('blob:')) {
-        try { URL.revokeObjectURL(src); } catch (e) {}
+        try { URL.revokeObjectURL(src); } catch (e) { }
       }
       el.removeAttribute('src');
       el.removeAttribute('srcset');
@@ -322,7 +330,7 @@
     try {
       containerRect = container.getBoundingClientRect();
       const rows = container.querySelectorAll('[data-pagelet="MWMessageRow"]');
-      
+
       rows.forEach((row) => {
         const rect = row.getBoundingClientRect();
         if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) return;
@@ -362,7 +370,7 @@
         panel.innerText = `⚡ Batch ${batchCounter} | ${currentSpeed}ms`;
         console.log(`%c📥 SAVED%c: Batch ${batchCounter - 1} complete. Total captured: ${totalCaptured}, skipped: ${totalSkipped}`, 'color:#0af;font-weight:bold', 'color:#888');
       }
-      
+
       // Update diagnostics every cycle
       updateDiagPanel();
 
@@ -377,10 +385,46 @@
 
       // Adjust speed based on loading
       adjustSpeed();
-      
+
+      // Extra capture passes: wait a bit and scan again to catch settling content
+      if (EXTRA_CAPTURE_PASSES > 0) {
+        setTimeout(() => {
+          for (let pass = 0; pass < EXTRA_CAPTURE_PASSES; pass++) {
+            containerRect = container.getBoundingClientRect();
+            const rows = container.querySelectorAll('[data-pagelet="MWMessageRow"]');
+            rows.forEach((row) => {
+              const rect = row.getBoundingClientRect();
+              if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) return;
+              
+              const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
+              const sender = detectSender(row, defaultSender);
+              const media = extractMedia(row);
+              const rawText = (row.innerText || '').trim();
+              
+              const sig = getRowSignature(sender, rawText, media);
+              if (capturedRowSignatures.has(sig)) {
+                return; // Already have this one
+              }
+              capturedRowSignatures.add(sig);
+              
+              currentBatch.push({
+                y: rect.top,
+                sender,
+                raw_text: rawText,
+                media_urls: media,
+                ts: Date.now(),
+              });
+              totalCaptured += 1;
+              stripMedia(row);
+            });
+          }
+          updateDiagPanel();
+        }, 200); // Wait 200ms for content to settle
+      }
+
       // Schedule next cycle with adaptive timing
       scheduleNextCycle();
-      
+
     } catch (err) {
       console.error('Capture loop error', err);
       logStatus('error');
@@ -421,7 +465,7 @@
     isRunning = true;
     panel.style.background = '#28a745';
     panel.innerText = `⚡ Batch ${batchCounter} | ${currentSpeed}ms`;
-    console.log('%c🚀 v12 COLLECTOR STARTED%c\nAdaptive timing: %c' + BASE_SPEED_MS + 'ms%c (base) → %c' + MAX_SPEED_MS + 'ms%c (max)\nDuplicate skip: %cENABLED%c', 
+    console.log('%c🚀 v12 COLLECTOR STARTED%c\nAdaptive timing: %c' + BASE_SPEED_MS + 'ms%c (base) → %c' + MAX_SPEED_MS + 'ms%c (max)\nDuplicate skip: %cENABLED%c',
       'color:#0f0;font-weight:bold;font-size:14px', 'color:#888',
       'color:#0f0', 'color:#888', 'color:#f90', 'color:#888',
       'color:#0f0;font-weight:bold', 'color:#888'
