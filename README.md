@@ -4,14 +4,14 @@ Tools to scrape a Messenger thread in the browser, keep memory in check, and pro
 
 ## Quick start
 
-1. Open the target Messenger thread in a desktop browser. Open DevTools Console and paste the contents of `scripts/js/v10_row_prune_collector.js`, then click inside the message pane and click the red STOP button to start. Batches (`messenger_row_part_*.json`) will download as you scroll.
-2. Place downloaded parts under `data/raw/batchN/` (one folder per run).
+1. Open the target Messenger thread in a desktop browser. Open DevTools Console and paste the contents of `scripts/js/v12_adaptive_collector.js` (recommended) or `scripts/js/v10_row_prune_collector.js`, then click inside the message pane. Batches (`messenger_row_part_*.json`) will auto-download as you scroll.
+2. Place downloaded parts under `data/raw/batchN/` (one folder per run). See `data_sample/` for expected structure.
 3. From repo root, stitch and clean:
 
-- Windows: `./.venv/Scripts/python.exe scripts/py/v10_stitch_rows.py` then `./.venv/Scripts/python.exe scripts/py/v11_clean_rows.py`
-- macOS/Linux: `python3 scripts/py/v10_stitch_rows.py` then `python3 scripts/py/v11_clean_rows.py`
+- Windows: `./.venv/Scripts/python.exe scripts/py/v10_stitch_rows.py` then `./.venv/Scripts/python.exe scripts/py/v12_clean_rows.py`
+- macOS/Linux: `python3 scripts/py/v10_stitch_rows.py` then `python3 scripts/py/v12_clean_rows.py`
 
-4. Stitched rows land at `data/processed/final_rows.json`; cleaned, grouped chat at `data/processed/v11_final_clean_rows.json`.
+4. Stitched rows land at `data/processed/final_rows.json`; cleaned, grouped chat at `data/processed/v12_final_clean_rows.json`.
 
 ## How the JS collector works
 
