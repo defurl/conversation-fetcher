@@ -24,6 +24,39 @@
   panel.innerText = '🛑 STOP & SAVE';
   document.body.appendChild(panel);
 
+  // === DIAGNOSTICS PANEL ===
+  const diagPanel = document.createElement('div');
+  diagPanel.style.cssText = 'position:fixed; top:60px; right:10px; z-index:9999; background:rgba(0,0,0,0.85); color:#0f0; padding:12px; border-radius:5px; font-family:monospace; font-size:11px; min-width:280px; box-shadow:0 4px 6px rgba(0,0,0,0.3);';
+  diagPanel.innerHTML = '<div style="color:#fff;font-weight:bold;margin-bottom:8px;">📊 v12 Diagnostics</div><div id="diag-content">Waiting to start...</div>';
+  document.body.appendChild(diagPanel);
+
+  function updateDiagPanel() {
+    const mem = performance && performance.memory ? performance.memory : null;
+    const efficiency = totalCaptured > 0 ? ((totalCaptured / (totalCaptured + totalSkipped)) * 100).toFixed(1) : '100';
+    const skipRate = (totalCaptured + totalSkipped) > 0 ? ((totalSkipped / (totalCaptured + totalSkipped)) * 100).toFixed(1) : '0';
+    const speedColor = currentSpeed <= BASE_SPEED_MS ? '#0f0' : currentSpeed >= MAX_SPEED_MS ? '#f00' : '#ff0';
+    const stallColor = stallCount === 0 ? '#0f0' : stallCount < 3 ? '#ff0' : '#f00';
+    
+    const html = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">
+        <span>⏱️ Speed:</span><span style="color:${speedColor}">${currentSpeed}ms</span>
+        <span>🔄 Stalls:</span><span style="color:${stallColor}">${stallCount}</span>
+        <span>📦 Batch:</span><span>${batchCounter} (${currentBatch.length}/${BATCH_SIZE})</span>
+        <span>✅ Captured:</span><span>${totalCaptured}</span>
+        <span>⏭️ Skipped:</span><span style="color:#888">${totalSkipped}</span>
+        <span>📈 Efficiency:</span><span style="color:${efficiency > 80 ? '#0f0' : '#ff0'}">${efficiency}%</span>
+        <span>🧹 Pruned:</span><span>${totalPruned}</span>
+        <span>🔖 Signatures:</span><span>${capturedRowSignatures.size}</span>
+        <span>💾 Saved:</span><span>${totalSaved} files</span>
+        <span>🔁 Cycle:</span><span>${cycle}</span>
+      </div>
+      ${mem ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
+        <span>🧠 Heap:</span> <span style="color:${mem.usedJSHeapSize/mem.jsHeapSizeLimit > 0.7 ? '#f00' : '#0f0'}">${(mem.usedJSHeapSize/1048576).toFixed(0)}MB</span> / ${(mem.totalJSHeapSize/1048576).toFixed(0)}MB
+      </div>` : ''}
+    `;
+    document.getElementById('diag-content').innerHTML = html;
+  }
+
   // === STATE ===
   let isRunning = false;
   let currentBatch = [];
@@ -96,17 +129,24 @@
     if (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) < 10) {
       // Stalled - same position, content not loading
       stallCount++;
+      const oldSpeed = currentSpeed;
       currentSpeed = Math.min(currentSpeed + SPEED_INCREMENT, MAX_SPEED_MS);
-      console.log(`⏳ Stall detected (${stallCount}x), slowing to ${currentSpeed}ms`);
+      console.log(`%c⏳ STALL #${stallCount}%c: Content not loading. Speed: ${oldSpeed}ms → ${currentSpeed}ms`, 'color:#f90;font-weight:bold', 'color:#888');
     } else if (topY !== null) {
       // Content loaded successfully - speed back up gradually
+      const wasStalled = stallCount > 0;
       if (stallCount > 0) {
         stallCount = Math.max(0, stallCount - 1);
       }
+      const oldSpeed = currentSpeed;
       currentSpeed = Math.max(BASE_SPEED_MS, currentSpeed - SPEED_DECREMENT);
+      if (wasStalled && currentSpeed < oldSpeed) {
+        console.log(`%c✅ RECOVERED%c: Content flowing. Speed: ${oldSpeed}ms → ${currentSpeed}ms`, 'color:#0f0;font-weight:bold', 'color:#888');
+      }
     }
     
     lastTopRowY = topY;
+    updateDiagPanel();
   }
 
   function stripMedia(containerNode) {
@@ -319,8 +359,12 @@
 
       if (currentBatch.length >= BATCH_SIZE) {
         saveBatch();
-        panel.innerText = `⚡ Running (Batch ${batchCounter}) | Speed: ${currentSpeed}ms`;
+        panel.innerText = `⚡ Batch ${batchCounter} | ${currentSpeed}ms`;
+        console.log(`%c📥 SAVED%c: Batch ${batchCounter - 1} complete. Total captured: ${totalCaptured}, skipped: ${totalSkipped}`, 'color:#0af;font-weight:bold', 'color:#888');
       }
+      
+      // Update diagnostics every cycle
+      updateDiagPanel();
 
       container.scrollBy(0, -(container.clientHeight * SCROLL_AMOUNT));
 
@@ -376,7 +420,13 @@
 
     isRunning = true;
     panel.style.background = '#28a745';
-    panel.innerText = `⚡ Running (Batch ${batchCounter}) | Speed: ${currentSpeed}ms`;
+    panel.innerText = `⚡ Batch ${batchCounter} | ${currentSpeed}ms`;
+    console.log('%c🚀 v12 COLLECTOR STARTED%c\nAdaptive timing: %c' + BASE_SPEED_MS + 'ms%c (base) → %c' + MAX_SPEED_MS + 'ms%c (max)\nDuplicate skip: %cENABLED%c', 
+      'color:#0f0;font-weight:bold;font-size:14px', 'color:#888',
+      'color:#0f0', 'color:#888', 'color:#f90', 'color:#888',
+      'color:#0f0;font-weight:bold', 'color:#888'
+    );
+    updateDiagPanel();
 
     // Start capture loop
     scheduleNextCycle();
