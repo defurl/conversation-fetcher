@@ -3,19 +3,19 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
-// 
-// v12.2 TUNING: Catch-All Update (Targeting 100% Coverage)
-// - Reduced scroll amount to 40% (high overlap, safely deduplicated via signatures)
-// - Relaxed visibility: capture if TOP is in view (prevents missing tall messages)
-// - Increased PRUNE_PX to 500px to give content more "settle" room
+// v12.3 TUNING: Longevity & Stall Recovery (Targeting Deep History)
+// - Added Nudge Mechanism: forces scroll if stuck for 3+ cycles
+// - Added scrollHeight tracking: improves stall detection
+// - Faster Speed Recovery: speed up 400ms per cycle after flowing
 (function () {
   // === CONFIGURATION ===
   const BASE_SPEED_MS = 1000;
   const MAX_SPEED_MS = 6000;
   const SPEED_INCREMENT = 400;
-  const SPEED_DECREMENT = 150;
+  const SPEED_DECREMENT = 400;    // v12.3: Recover speed 2.5x faster (was 150)
   const SCROLL_AMOUNT = 0.4;      // Very high overlap (60%) to ensure we see every message piece
   const STALL_THRESHOLD_PX = 20;
+  const MAX_STALL_CYCLES = 3;     // v12.3: Cycles at MAX_SPEED before nudging
   const EXTRA_CAPTURE_PASSES = 1;
   const BATCH_SIZE = 50;
   const PRUNE_PX = 500;           // Standard v10 level for safety
@@ -48,6 +48,7 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">
         <span>⏱️ Speed:</span><span style="color:${speedColor}">${currentSpeed}ms</span>
         <span>🔄 Stalls:</span><span style="color:${stallColor}">${stallCount}</span>
+        <span>🚀 Nudges:</span><span style="color:#0af">${totalNudges}</span>
         <span>📦 Batch:</span><span>${batchCounter} (${currentBatch.length}/${BATCH_SIZE})</span>
         <span>✅ Captured:</span><span>${totalCaptured}</span>
         <span>⏭️ Skipped:</span><span style="color:#888">${totalSkipped}</span>
@@ -55,7 +56,6 @@
         <span>🧹 Pruned:</span><span>${totalPruned}</span>
         <span>🔖 Signatures:</span><span>${capturedRowSignatures.size}</span>
         <span>💾 Saved:</span><span>${totalSaved} files</span>
-        <span>🔁 Cycle:</span><span>${cycle}</span>
       </div>
       ${mem ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
         <span>🧠 Heap:</span> <span style="color:${mem.usedJSHeapSize / mem.jsHeapSizeLimit > 0.7 ? '#f00' : '#0f0'}">${(mem.usedJSHeapSize / 1048576).toFixed(0)}MB</span> / ${(mem.totalJSHeapSize / 1048576).toFixed(0)}MB
@@ -77,7 +77,9 @@
   // Adaptive timing state
   let currentSpeed = BASE_SPEED_MS;
   let lastTopRowY = null;
+  let lastScrollHeight = 0;
   let stallCount = 0;
+  let consecutiveStallCycles = 0;
 
   // Duplicate detection
   const capturedRowSignatures = new Set();
@@ -87,6 +89,7 @@
   let totalSaved = 0;
   let totalPruned = 0;
   let totalSkipped = 0;
+  let totalNudges = 0;
   let cycle = 0;
   const LOG_EVERY = 10;
 
@@ -132,19 +135,34 @@
 
   function adjustSpeed() {
     const topY = getTopVisibleRowY();
+    const currentScrollHeight = container.scrollHeight;
+    
+    // v12.3: Improved stall detection using topY and scrollHeight
+    const contentChanged = (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) >= STALL_THRESHOLD_PX) ||
+                           (lastScrollHeight !== 0 && currentScrollHeight > lastScrollHeight);
 
-    if (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) < STALL_THRESHOLD_PX) {
+    if (topY !== null && !contentChanged) {
       // Stalled - same position, content not loading
       stallCount++;
+      consecutiveStallCycles++;
+      
       const oldSpeed = currentSpeed;
       currentSpeed = Math.min(currentSpeed + SPEED_INCREMENT, MAX_SPEED_MS);
       console.log(`%c⏳ STALL #${stallCount}%c: Content not loading. Speed: ${oldSpeed}ms → ${currentSpeed}ms`, 'color:#f90;font-weight:bold', 'color:#888');
+      
+      // v12.3: Nudge Mechanism
+      if (consecutiveStallCycles >= MAX_STALL_CYCLES && currentSpeed >= MAX_SPEED_MS) {
+        totalNudges++;
+        console.log(`%c🚀 NUDGE #${totalNudges}%c: Deep stall detected. Forcing scroll to wake up lazy loader.`, 'color:#0af;font-weight:bold', 'color:#888');
+        container.scrollBy(0, -200);
+        consecutiveStallCycles = 0; // Reset nudge counter
+      }
     } else if (topY !== null) {
       // Content loaded successfully - speed back up gradually
       const wasStalled = stallCount > 0;
-      if (stallCount > 0) {
-        stallCount = Math.max(0, stallCount - 1);
-      }
+      stallCount = 0;
+      consecutiveStallCycles = 0;
+      
       const oldSpeed = currentSpeed;
       currentSpeed = Math.max(BASE_SPEED_MS, currentSpeed - SPEED_DECREMENT);
       if (wasStalled && currentSpeed < oldSpeed) {
@@ -153,6 +171,7 @@
     }
 
     lastTopRowY = topY;
+    lastScrollHeight = currentScrollHeight;
     updateDiagPanel();
   }
 
