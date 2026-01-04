@@ -4,22 +4,21 @@
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
 // 
-// v12.1 TUNING: Adjusted to capture more content (was missing ~13% vs v10)
-// - Reduced scroll amount from 90% to 75% for more overlap coverage
-// - Increased base speed from 800ms to 1000ms for more loading time
-// - Made stall detection less sensitive (threshold 20px instead of 10px)
-// - Added EXTRA_CAPTURE_PASSES to scan viewport multiple times per cycle
+// v12.2 TUNING: Catch-All Update (Targeting 100% Coverage)
+// - Reduced scroll amount to 40% (high overlap, safely deduplicated via signatures)
+// - Relaxed visibility: capture if TOP is in view (prevents missing tall messages)
+// - Increased PRUNE_PX to 500px to give content more "settle" room
 (function () {
   // === CONFIGURATION ===
-  const BASE_SPEED_MS = 1000;     // Slightly slower for better content loading
-  const MAX_SPEED_MS = 6000;      // Increased max for very slow loading
-  const SPEED_INCREMENT = 400;    // Smaller increments for smoother adjustment
-  const SPEED_DECREMENT = 150;    // Slower speed-up to avoid missing content
-  const SCROLL_AMOUNT = 0.75;     // Reduced from 0.9 for more overlap coverage
-  const STALL_THRESHOLD_PX = 20;  // More lenient stall detection (was 10)
-  const EXTRA_CAPTURE_PASSES = 1; // Extra viewport scans per cycle (0 = disabled)
+  const BASE_SPEED_MS = 1000;
+  const MAX_SPEED_MS = 6000;
+  const SPEED_INCREMENT = 400;
+  const SPEED_DECREMENT = 150;
+  const SCROLL_AMOUNT = 0.4;      // Very high overlap (60%) to ensure we see every message piece
+  const STALL_THRESHOLD_PX = 20;
+  const EXTRA_CAPTURE_PASSES = 1;
   const BATCH_SIZE = 50;
-  const PRUNE_PX = 400;           // Slightly less aggressive (was 300)
+  const PRUNE_PX = 500;           // Standard v10 level for safety
   const CAPTURE_MEDIA = true;
   const STRIP_MEDIA_ALWAYS = true;
   const USE_MUTATION_OBSERVER = true;
@@ -333,7 +332,9 @@
 
       rows.forEach((row) => {
         const rect = row.getBoundingClientRect();
-        if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) return;
+        // Relaxed Constraint: As long as the TOP is within bounds, capture it.
+        // This ensures tall messages that don't fit the screen are caught as soon as they appear.
+        if (rect.top < containerRect.top || rect.top > containerRect.bottom) return;
 
         const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
         const sender = detectSender(row, defaultSender);
@@ -394,7 +395,7 @@
             const rows = container.querySelectorAll('[data-pagelet="MWMessageRow"]');
             rows.forEach((row) => {
               const rect = row.getBoundingClientRect();
-              if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) return;
+              if (rect.top < containerRect.top || rect.top > containerRect.bottom) return;
               
               const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
               const sender = detectSender(row, defaultSender);
