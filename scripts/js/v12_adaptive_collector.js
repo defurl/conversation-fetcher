@@ -158,6 +158,10 @@
       console.warn(`%c⚠️ RAM GUARD%c: Heap usage high (${(mem.usedJSHeapSize/1048576).toFixed(0)}MB). Slowing to ${currentSpeed}ms to allow GC.`, 'color:red;font-weight:bold', 'color:#888');
     }
 
+    // v12.3: Improved stall detection using topY and scrollHeight
+    const contentChanged = (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) >= STALL_THRESHOLD_PX) ||
+                           (lastScrollHeight !== 0 && currentScrollHeight > lastScrollHeight);
+
     if (topY !== null && !contentChanged) {
       // Stalled - same position, content not loading
       stallCount++;
