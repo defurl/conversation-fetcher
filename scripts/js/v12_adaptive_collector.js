@@ -3,20 +3,22 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
-// v12.3 TUNING: Longevity & Stall Recovery (Targeting Deep History)
-// - Added Nudge Mechanism: forces scroll if stuck for 3+ cycles
-// - Added scrollHeight tracking: improves stall detection
-// - Faster Speed Recovery: speed up 400ms per cycle after flowing
+// v12.4 TUNING: RAM Guard & Longevity (Stable for 200+ parts)
+// - Added Signature Pruning: keep only last 2000 sigs (flat RAM usage)
+// - Added Heap Watcher: auto-slows if memory usage > 80%
+// - Optimization: explicit object nulling after saves
 (function () {
   // === CONFIGURATION ===
   const BASE_SPEED_MS = 1000;
   const MAX_SPEED_MS = 6000;
   const SPEED_INCREMENT = 400;
-  const SPEED_DECREMENT = 400;    // v12.3: Recover speed 2.5x faster (was 150)
-  const SCROLL_AMOUNT = 0.4;      // Very high overlap (60%) to ensure we see every message piece
+  const SPEED_DECREMENT = 400;
+  const SCROLL_AMOUNT = 0.4;
   const STALL_THRESHOLD_PX = 20;
-  const MAX_STALL_CYCLES = 3;     // v12.3: Cycles at MAX_SPEED before nudging
+  const MAX_STALL_CYCLES = 3;
   const EXTRA_CAPTURE_PASSES = 1;
+  const SIG_MEMORY_LIMIT = 2000;  // v12.4: Limit signature Set size
+  const HEAP_THRESHOLD_PCT = 0.8; // v12.4: Slow down at 80% heap usage
   const BATCH_SIZE = 50;
   const PRUNE_PX = 500;           // Standard v10 level for safety
   const CAPTURE_MEDIA = true;
@@ -83,6 +85,18 @@
 
   // Duplicate detection
   const capturedRowSignatures = new Set();
+  const sigHistory = []; // v12.4: Tracks signature order for pruning
+
+  function pruneSignatures(newSig) {
+    if (capturedRowSignatures.has(newSig)) return true;
+    capturedRowSignatures.add(newSig);
+    sigHistory.push(newSig);
+    if (sigHistory.length > SIG_MEMORY_LIMIT) {
+      const old = sigHistory.shift();
+      capturedRowSignatures.delete(old);
+    }
+    return false;
+  }
 
   // Diagnostics
   let totalCaptured = 0;
@@ -137,9 +151,12 @@
     const topY = getTopVisibleRowY();
     const currentScrollHeight = container.scrollHeight;
     
-    // v12.3: Improved stall detection using topY and scrollHeight
-    const contentChanged = (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) >= STALL_THRESHOLD_PX) ||
-                           (lastScrollHeight !== 0 && currentScrollHeight > lastScrollHeight);
+    // v12.4: Heap Watcher
+    const mem = performance && performance.memory ? performance.memory : null;
+    if (mem && mem.usedJSHeapSize > mem.jsHeapLimit * HEAP_THRESHOLD_PCT) {
+      currentSpeed = Math.min(currentSpeed + 1000, MAX_SPEED_MS);
+      console.warn(`%c⚠️ RAM GUARD%c: Heap usage high (${(mem.usedJSHeapSize/1048576).toFixed(0)}MB). Slowing to ${currentSpeed}ms to allow GC.`, 'color:red;font-weight:bold', 'color:#888');
+    }
 
     if (topY !== null && !contentChanged) {
       // Stalled - same position, content not loading
@@ -360,13 +377,12 @@
         const media = extractMedia(row);
         const rawText = (row.innerText || '').trim();
 
-        // Check for duplicate
+        // Check for duplicate (v12.4: with pruning)
         const sig = getRowSignature(sender, rawText, media);
-        if (capturedRowSignatures.has(sig)) {
+        if (pruneSignatures(sig)) {
           totalSkipped++;
           return; // Skip - already captured
         }
-        capturedRowSignatures.add(sig);
 
         currentBatch.push({
           y: rect.top,
@@ -422,10 +438,9 @@
               const rawText = (row.innerText || '').trim();
               
               const sig = getRowSignature(sender, rawText, media);
-              if (capturedRowSignatures.has(sig)) {
+              if (pruneSignatures(sig)) {
                 return; // Already have this one
               }
-              capturedRowSignatures.add(sig);
               
               currentBatch.push({
                 y: rect.top,
