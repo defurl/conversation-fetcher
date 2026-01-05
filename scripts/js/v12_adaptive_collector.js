@@ -3,24 +3,24 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
-// v12.4 TUNING: RAM Guard & Longevity (Stable for 200+ parts)
-// - Added Signature Pruning: keep only last 2000 sigs (flat RAM usage)
-// - Added Heap Watcher: auto-slows if memory usage > 80%
-// - Optimization: explicit object nulling after saves
+// v12.5 TUNING: Efficiency & Speed Optimization
+// - Increased scroll to 60% (less overlap, fewer skipped rows)
+// - More aggressive prune (300px) for faster DOM cleanup
+// - Disabled extra capture passes (relaxed visibility is sufficient)
 (function () {
   // === CONFIGURATION ===
   const BASE_SPEED_MS = 1000;
   const MAX_SPEED_MS = 6000;
   const SPEED_INCREMENT = 400;
   const SPEED_DECREMENT = 400;
-  const SCROLL_AMOUNT = 0.4;
+  const SCROLL_AMOUNT = 0.6;      // v12.5: 60% scroll (was 40%) - less overlap
   const STALL_THRESHOLD_PX = 20;
   const MAX_STALL_CYCLES = 3;
-  const EXTRA_CAPTURE_PASSES = 1;
-  const SIG_MEMORY_LIMIT = 2000;  // v12.4: Limit signature Set size
-  const HEAP_THRESHOLD_PCT = 0.8; // v12.4: Slow down at 80% heap usage
+  const EXTRA_CAPTURE_PASSES = 0; // v12.5: Disabled (relaxed visibility is enough)
+  const SIG_MEMORY_LIMIT = 2000;
+  const HEAP_THRESHOLD_PCT = 0.8;
   const BATCH_SIZE = 50;
-  const PRUNE_PX = 500;           // Standard v10 level for safety
+  const PRUNE_PX = 300;           // v12.5: More aggressive (was 500)
   const CAPTURE_MEDIA = true;
   const STRIP_MEDIA_ALWAYS = true;
   const USE_MUTATION_OBSERVER = true;
