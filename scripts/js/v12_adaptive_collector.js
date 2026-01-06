@@ -3,21 +3,20 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
-// v12.6 TUNING: Jump Scroll Experiment (inspired by ScrapingBee article)
-// - Uses scroll-to-top instead of incremental scrolling
-// - Waits for scrollHeight to increase before proceeding (content loaded)
-// - Maintains v12.4 signature pruning and heap watcher
+// v12.4 TUNING: RAM Guard & Longevity (Best performer: 5101 unique msgs)
+// - Signature Pruning: keep only last 2000 sigs (flat RAM usage)
+// - Heap Watcher: auto-slows if memory usage > 80%
+// - 40% incremental scroll with extra capture pass for maximum coverage
 (function () {
   // === CONFIGURATION ===
   const BASE_SPEED_MS = 1000;
   const MAX_SPEED_MS = 6000;
   const SPEED_INCREMENT = 400;
   const SPEED_DECREMENT = 400;
-  const JUMP_SCROLL = true;       // v12.6: Jump to top instead of incremental
-  const SCROLL_AMOUNT = 0.4;      // Fallback if JUMP_SCROLL is false
+  const SCROLL_AMOUNT = 0.4;      // 40% scroll - optimal for coverage
   const STALL_THRESHOLD_PX = 20;
   const MAX_STALL_CYCLES = 3;
-  const EXTRA_CAPTURE_PASSES = 1;
+  const EXTRA_CAPTURE_PASSES = 1; // Extra pass catches settling content
   const SIG_MEMORY_LIMIT = 2000;
   const HEAP_THRESHOLD_PCT = 0.8;
   const BATCH_SIZE = 50;
@@ -415,12 +414,8 @@
       // Update diagnostics every cycle
       updateDiagPanel();
 
-      // v12.6: Jump Scroll - scroll to top of container to trigger lazy load
-      if (JUMP_SCROLL) {
-        container.scrollTop = 0;
-      } else {
-        container.scrollBy(0, -(container.clientHeight * SCROLL_AMOUNT));
-      }
+      // Incremental scroll for optimal coverage
+      container.scrollBy(0, -(container.clientHeight * SCROLL_AMOUNT));
 
       cycle += 1;
       if (cycle % LOG_EVERY === 0) logStatus('periodic');
