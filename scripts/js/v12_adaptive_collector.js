@@ -3,24 +3,24 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
-// v12.4 TUNING: RAM Guard & Longevity (Best performer: 5101 unique msgs)
-// - Signature Pruning: keep only last 2000 sigs (flat RAM usage)
-// - Heap Watcher: auto-slows if memory usage > 80%
-// - 40% incremental scroll with extra capture pass for maximum coverage
+// v12.4 TUNING: RAM Guard & Longevity (Stable for 200+ parts)
+// - Added Signature Pruning: keep only last 2000 sigs (flat RAM usage)
+// - Added Heap Watcher: auto-slows if memory usage > 80%
+// - Optimization: explicit object nulling after saves
 (function () {
   // === CONFIGURATION ===
   const BASE_SPEED_MS = 1000;
   const MAX_SPEED_MS = 6000;
   const SPEED_INCREMENT = 400;
   const SPEED_DECREMENT = 400;
-  const SCROLL_AMOUNT = 0.4;      // 40% scroll - optimal for coverage
+  const SCROLL_AMOUNT = 0.4;
   const STALL_THRESHOLD_PX = 20;
   const MAX_STALL_CYCLES = 3;
-  const EXTRA_CAPTURE_PASSES = 1; // Extra pass catches settling content
-  const SIG_MEMORY_LIMIT = 2000;
-  const HEAP_THRESHOLD_PCT = 0.8;
+  const EXTRA_CAPTURE_PASSES = 1;
+  const SIG_MEMORY_LIMIT = 2000;  // v12.4: Limit signature Set size
+  const HEAP_THRESHOLD_PCT = 0.8; // v12.4: Slow down at 80% heap usage
   const BATCH_SIZE = 50;
-  const PRUNE_PX = 500;           // Standard prune distance
+  const PRUNE_PX = 500;           // Standard v10 level for safety
   const CAPTURE_MEDIA = true;
   const STRIP_MEDIA_ALWAYS = true;
   const USE_MUTATION_OBSERVER = true;
@@ -381,11 +381,18 @@
         const media = extractMedia(row);
         const rawText = (row.innerText || '').trim();
 
-        // Check for duplicate (v12.4: with pruning)
+        // Check for duplicate (v12.4: with pruning & DOM marker)
+        // Optimization: If we already marked this DOM node, skip immediately (fixes stripMedia duplicate bug)
+        if (row.dataset.captured === '1') {
+          totalSkipped++;
+          return;
+        }
+
         const sig = getRowSignature(sender, rawText, media);
         if (pruneSignatures(sig)) {
           totalSkipped++;
-          return; // Skip - already captured
+          row.dataset.captured = '1'; // Mark it anyway
+          return; 
         }
 
         currentBatch.push({
@@ -397,6 +404,7 @@
         });
 
         totalCaptured += 1;
+        row.dataset.captured = '1'; // Mark as handled so we ignore it if stripped
         stripMedia(row);
       });
 
@@ -414,7 +422,6 @@
       // Update diagnostics every cycle
       updateDiagPanel();
 
-      // Incremental scroll for optimal coverage
       container.scrollBy(0, -(container.clientHeight * SCROLL_AMOUNT));
 
       cycle += 1;
@@ -437,6 +444,9 @@
               const rect = row.getBoundingClientRect();
               if (rect.top < containerRect.top || rect.top > containerRect.bottom) return;
               
+              // Extra pass check
+              if (row.dataset.captured === '1') return; // Fast skip
+
               const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
               const sender = detectSender(row, defaultSender);
               const media = extractMedia(row);
@@ -444,7 +454,8 @@
               
               const sig = getRowSignature(sender, rawText, media);
               if (pruneSignatures(sig)) {
-                return; // Already have this one
+                row.dataset.captured = '1';
+                return; 
               }
               
               currentBatch.push({
@@ -455,6 +466,7 @@
                 ts: Date.now(),
               });
               totalCaptured += 1;
+              row.dataset.captured = '1';
               stripMedia(row);
             });
           }

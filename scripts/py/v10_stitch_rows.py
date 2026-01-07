@@ -27,9 +27,26 @@ def part_number(path: Path) -> int:
     return 0
 
 
-def load_parts():
+def load_parts(target_dir=None):
     parts = []
-    for path in sorted(DATA_RAW.rglob("messenger_row_part*.json"), key=lambda p: (p.parent.as_posix(), part_number(p))):
+    # Ensure search_dir is absolute so globbed paths are compatible with DATA_RAW (absolute)
+    if target_dir:
+        search_dir = Path(target_dir).resolve() 
+    else:
+        search_dir = DATA_RAW
+    
+    # If target is specific batch dir (e.g. batch22), search inside it
+    # If target is raw root, search recursively
+    pattern = "messenger_row_part*.json"
+    
+    if target_dir:
+        print(f"🔍 Searching in: {search_dir}")
+        iterator = search_dir.glob(pattern) # Non-recursive if specific dir
+    else:
+        print(f"🔍 Searching in: {DATA_RAW} (Recursive)")
+        iterator = DATA_RAW.rglob(pattern)
+
+    for path in sorted(iterator, key=lambda p: (p.parent.as_posix(), part_number(p))):
         try:
             with path.open('r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -43,8 +60,11 @@ def load_parts():
 
 
 def stitch():
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else None
+    
     DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
-    parts = load_parts()
+    parts = load_parts(target)
     print(f"Found {len(parts)} part files")
 
     dedup = set()
