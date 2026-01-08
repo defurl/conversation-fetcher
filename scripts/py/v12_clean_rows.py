@@ -322,16 +322,16 @@ def main():
             f"Input file not found. Checked: {[str(p) for p in INPUT_CANDIDATES]}"
         )
 
-    print(f"📂 Loading from: {input_file}")
+    print(f"Loading from: {input_file}")
     with input_file.open("r", encoding="utf-8") as f:
         raw_rows = json.load(f)
 
-    print(f"📊 Loaded {len(raw_rows)} raw rows")
+    print(f"Loaded {len(raw_rows)} raw rows")
 
     # Identify very frequent attachment URLs (likely avatars) and drop them globally.
     noise_counts = collect_attachment_counts(raw_rows)
     noise_set = {url for url, count in noise_counts.items() if count >= NOISE_ATTACHMENT_THRESHOLD}
-    print(f"🔇 Identified {len(noise_set)} noise URLs (appearing {NOISE_ATTACHMENT_THRESHOLD}+ times)")
+    print(f"Identified {len(noise_set)} noise URLs (appearing {NOISE_ATTACHMENT_THRESHOLD}+ times)")
 
     cleaned = []
     current_ts = None
@@ -340,16 +340,16 @@ def main():
         if msg:
             cleaned.append(msg)
 
-    print(f"🧹 Cleaned to {len(cleaned)} rows")
+    print(f"Cleaned to {len(cleaned)} rows")
 
     grouped = group_messages(cleaned)
-    print(f"📦 Grouped to {len(grouped)} messages")
+    print(f"Grouped to {len(grouped)} messages")
 
     grouped = dedupe_consecutive(grouped)
-    print(f"🔄 After consecutive dedup: {len(grouped)} messages")
+    print(f"After consecutive dedup: {len(grouped)} messages")
 
     grouped = dedupe_capture_artifacts(grouped)
-    print(f"✨ After capture artifact dedup: {len(grouped)} messages")
+    print(f"After capture artifact dedup: {len(grouped)} messages")
 
     # Strip internal fields before output
     grouped = strip_internal_fields(grouped)
@@ -359,7 +359,7 @@ def main():
         json.dump(grouped, f, ensure_ascii=False, indent=4)
 
     print(
-        f"✅ Cleaned {len(raw_rows)} raw rows -> {len(grouped)} grouped messages. "
+        f"Cleaned {len(raw_rows)} raw rows -> {len(grouped)} grouped messages. "
         f"Output: {OUTPUT_FILE}"
     )
 

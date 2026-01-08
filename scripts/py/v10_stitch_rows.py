@@ -40,10 +40,10 @@ def load_parts(target_dir=None):
     pattern = "messenger_row_part*.json"
     
     if target_dir:
-        print(f"🔍 Searching in: {search_dir}")
+        print(f"Searching in: {search_dir}")
         iterator = search_dir.glob(pattern) # Non-recursive if specific dir
     else:
-        print(f"🔍 Searching in: {DATA_RAW} (Recursive)")
+        print(f"Searching in: {DATA_RAW} (Recursive)")
         iterator = DATA_RAW.rglob(pattern)
 
     for path in sorted(iterator, key=lambda p: (p.parent.as_posix(), part_number(p))):
@@ -53,9 +53,9 @@ def load_parts(target_dir=None):
                 if isinstance(data, list):
                     parts.append((path, data))
                 else:
-                    print(f"⚠️ Skipping non-list file: {path}")
+                    print(f"Skipping non-list file: {path}")
         except Exception as e:
-            print(f"❌ Error reading {path}: {e}")
+            print(f"Error reading {path}: {e}")
     return parts
 
 
@@ -95,7 +95,7 @@ def stitch():
     with OUTPUT_FILE.open('w', encoding='utf-8') as f:
         json.dump(stitched, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ Wrote {len(stitched)} messages to {OUTPUT_FILE}")
+    print(f"Wrote {len(stitched)} messages to {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

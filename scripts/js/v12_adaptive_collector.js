@@ -3,13 +3,14 @@
 // - Skips already-captured rows to prevent duplicates from scroll overlap
 // - Dynamically adjusts scroll speed based on content loading (fast early, slow late)
 // - Reduces RAM usage by preventing duplicate captures
-// v12.4 TUNING: RAM Guard & Longevity (Stable for 200+ parts)
-// - Added Signature Pruning: keep only last 2000 sigs (flat RAM usage)
-// - Added Heap Watcher: auto-slows if memory usage > 80%
-// - Optimization: explicit object nulling after saves
+// v12.5 TUNING: Slower Scroll & Visual Stability
+// - Slower base speed (1500ms) for DOM stability
+// - Delayed media stripping (2000ms) to prevent layout jumps
+// - Dimension freezing to prevent layout collapse
+// - Explicit DOM marking (data-captured) to prevent re-captures
 (function () {
   // === CONFIGURATION ===
-  const BASE_SPEED_MS = 1000;
+  const BASE_SPEED_MS = 1500;     // Slower scroll for stability
   const MAX_SPEED_MS = 6000;
   const SPEED_INCREMENT = 400;
   const SPEED_DECREMENT = 400;
@@ -17,15 +18,16 @@
   const STALL_THRESHOLD_PX = 20;
   const MAX_STALL_CYCLES = 3;
   const EXTRA_CAPTURE_PASSES = 1;
-  const SIG_MEMORY_LIMIT = 2000;  // v12.4: Limit signature Set size
-  const HEAP_THRESHOLD_PCT = 0.8; // v12.4: Slow down at 80% heap usage
+  const SIG_MEMORY_LIMIT = 2000;
+  const HEAP_THRESHOLD_PCT = 0.8;
   const BATCH_SIZE = 50;
-  const PRUNE_PX = 500;           // Standard v10 level for safety
+  const PRUNE_PX = 500;
   const CAPTURE_MEDIA = true;
-  const STRIP_MEDIA_ALWAYS = true;
+  const STRIP_MEDIA_ALWAYS = false; // v12.6: Disabled to fix layout collapse
   const USE_MUTATION_OBSERVER = true;
+  const STRIP_DELAY_MS = 2000;    // Wait before stripping media
   const MAX_CYCLES_BEFORE_PAUSE = Infinity;
-  const SIGNATURE_TRUNCATE = 200; // Chars for duplicate signature
+  const SIGNATURE_TRUNCATE = 200;
 
   // === UI PANEL ===
   const panel = document.createElement('div');
@@ -36,7 +38,7 @@
   // === DIAGNOSTICS PANEL ===
   const diagPanel = document.createElement('div');
   diagPanel.style.cssText = 'position:fixed; top:60px; right:10px; z-index:9999; background:rgba(0,0,0,0.85); color:#0f0; padding:12px; border-radius:5px; font-family:monospace; font-size:11px; min-width:280px; box-shadow:0 4px 6px rgba(0,0,0,0.3);';
-  diagPanel.innerHTML = '<div style="color:#fff;font-weight:bold;margin-bottom:8px;">📊 v12 Diagnostics</div><div id="diag-content">Waiting to start...</div>';
+  diagPanel.innerHTML = '<div style="color:#fff;font-weight:bold;margin-bottom:8px;">📊 v12.5 Diagnostics</div><div id="diag-content">Waiting to start...</div>';
   document.body.appendChild(diagPanel);
 
   function updateDiagPanel() {
@@ -85,7 +87,7 @@
 
   // Duplicate detection
   const capturedRowSignatures = new Set();
-  const sigHistory = []; // v12.4: Tracks signature order for pruning
+  const sigHistory = [];
 
   function pruneSignatures(newSig) {
     if (capturedRowSignatures.has(newSig)) return true;
@@ -151,19 +153,19 @@
     const topY = getTopVisibleRowY();
     const currentScrollHeight = container.scrollHeight;
     
-    // v12.4: Heap Watcher
+    // Heap Watcher
     const mem = performance && performance.memory ? performance.memory : null;
     if (mem && mem.usedJSHeapSize > mem.jsHeapLimit * HEAP_THRESHOLD_PCT) {
       currentSpeed = Math.min(currentSpeed + 1000, MAX_SPEED_MS);
       console.warn(`%c⚠️ RAM GUARD%c: Heap usage high (${(mem.usedJSHeapSize/1048576).toFixed(0)}MB). Slowing to ${currentSpeed}ms to allow GC.`, 'color:red;font-weight:bold', 'color:#888');
     }
 
-    // v12.3: Improved stall detection using topY and scrollHeight
+    // Stall detection
     const contentChanged = (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) >= STALL_THRESHOLD_PX) ||
                            (lastScrollHeight !== 0 && currentScrollHeight > lastScrollHeight);
 
     if (topY !== null && !contentChanged) {
-      // Stalled - same position, content not loading
+      // Stalled
       stallCount++;
       consecutiveStallCycles++;
       
@@ -171,15 +173,15 @@
       currentSpeed = Math.min(currentSpeed + SPEED_INCREMENT, MAX_SPEED_MS);
       console.log(`%c⏳ STALL #${stallCount}%c: Content not loading. Speed: ${oldSpeed}ms → ${currentSpeed}ms`, 'color:#f90;font-weight:bold', 'color:#888');
       
-      // v12.3: Nudge Mechanism
+      // Nudge
       if (consecutiveStallCycles >= MAX_STALL_CYCLES && currentSpeed >= MAX_SPEED_MS) {
         totalNudges++;
         console.log(`%c🚀 NUDGE #${totalNudges}%c: Deep stall detected. Forcing scroll to wake up lazy loader.`, 'color:#0af;font-weight:bold', 'color:#888');
         container.scrollBy(0, -200);
-        consecutiveStallCycles = 0; // Reset nudge counter
+        consecutiveStallCycles = 0;
       }
     } else if (topY !== null) {
-      // Content loaded successfully - speed back up gradually
+      // Recovered
       const wasStalled = stallCount > 0;
       stallCount = 0;
       consecutiveStallCycles = 0;
@@ -201,6 +203,16 @@
     containerNode.querySelectorAll('img').forEach((img) => {
       if (img.src && img.src.startsWith('blob:')) {
         try { URL.revokeObjectURL(img.src); } catch (e) { }
+      }
+      // v12.5 Fix: Freeze dimensions
+      if (img.getBoundingClientRect) {
+          const rect = img.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+              img.style.width = `${rect.width}px`;
+              img.style.height = `${rect.height}px`;
+              img.style.objectFit = 'contain';
+              img.style.backgroundColor = '#ccc'; // Visual placeholder
+          }
       }
       img.removeAttribute('src');
       img.removeAttribute('srcset');
@@ -287,6 +299,45 @@
     return urls;
   }
 
+  function logStatus(reason) {
+    const mem = performance && performance.memory ? performance.memory : null;
+    const rowsInDom = container ? container.querySelectorAll('[data-pagelet="MWMessageRow"]').length : -1;
+    console.log('[STAT]', reason, {
+      cycle,
+      currentBatch: currentBatch.length,
+      totalCaptured,
+      totalSkipped,
+      totalSaved,
+      totalPruned,
+      rowsInDom,
+      currentSpeed,
+      stallCount,
+      signaturesTracked: capturedRowSignatures.size,
+      usedJSHeapMB: mem ? (mem.usedJSHeapSize / 1048576).toFixed(1) : 'n/a',
+      totalJSHeapMB: mem ? (mem.totalJSHeapSize / 1048576).toFixed(1) : 'n/a'
+    });
+  }
+
+  // Debug: Log signature creation to find why dupes aren't skipped
+  function debugSignature(sender, rawText, media, row) {
+      if (cycle < 2) return; // Only log after first scroll
+      const sig = getRowSignature(sender, rawText, media);
+      const isDup = capturedRowSignatures.has(sig);
+      const isMarked = row.dataset.captured === '1';
+      
+      if (!isDup && !isMarked) {
+          // This row is considered "NEW" by logic.
+          // Check if we have a similar signature (fuzzy match?)
+          // Log it to see if it SHOULD have been a dup.
+          // Only log first 3 per cycle to avoid spam
+          if (Math.random() < 0.05) {
+            console.log(`%c[SIG CHECK] New: ${sig.slice(0, 50)}...`, 'color:pink');
+            console.log('   -> DOM Marked?', isMarked);
+            console.log('   -> In Set?', isDup);
+          }
+      }
+  }
+
   function pruneDOM() {
     if (!container) return;
     containerRect = container.getBoundingClientRect();
@@ -295,27 +346,50 @@
       if (!row || row.dataset.hollowed === '1') return false;
       const rect = row.getBoundingClientRect();
       const h = rect.height || row.offsetHeight || 40;
-      stripMedia(row);
+      
+      // v12.7: Don't strip media if it causes crash, but DO hollow out
+      // To save RAM, we must remove the complex DOM nodes.
+      // Fix scroll jump: When removing items ABOVE viewport, scroll position usually jumps.
+      // We must adjust scrollTop to compensate, OR use `content-visibility: auto`.
+      
+      stripMedia(row); // Remove images (heavy)
+      
       const placeholder = document.createElement('div');
       placeholder.style.height = `${h}px`;
       placeholder.style.width = '100%';
       placeholder.style.pointerEvents = 'none';
-      placeholder.style.opacity = '0';
       placeholder.dataset.hollowed = '1';
+      // v12.7: Visual placeholder to see what was pruned
+      placeholder.style.border = '1px dashed #444'; 
+      placeholder.textContent = `[Pruned: ${h.toFixed(0)}px]`;
+      placeholder.style.color = '#666';
+      placeholder.style.fontSize = '10px';
+      
       row.replaceWith(placeholder);
       return true;
     };
 
     const rows = container.querySelectorAll('[data-pagelet="MWMessageRow"]');
     let hollowed = 0;
+    
+    // v12.7: Aggressive Pruning - Prune everything ABOVE the top + buffer
+    // Only keep 2 screens above viewport for scroll up context
+    const PRUNE_TOP_BUFFER = containerRect.height * 2;
+    
     rows.forEach((row) => {
       const rect = row.getBoundingClientRect();
-      if (rect.top > containerRect.bottom + PRUNE_PX || rect.bottom < containerRect.top - PRUNE_PX) {
+      
+      // Prune if far ABOVE viewport (Old messages) -> Primary RAM saver
+      if (rect.bottom < containerRect.top - PRUNE_TOP_BUFFER) {
         if (hollowRow(row)) hollowed += 1;
       }
+      // Prune if far BELOW viewport (Future?) - unlikely in scroll up, but safe measure
+      else if (rect.top > containerRect.bottom + PRUNE_PX) {
+         if (hollowRow(row)) hollowed += 1;
+      }
     });
-    totalPruned += hollowed;
-    if (hollowed > 0) console.log(`🧹 Hollowed ${hollowed} rows (totalPruned=${totalPruned})`);
+    
+    if (hollowed > 0) console.log(`🧹 Hollowed ${hollowed} rows`);
   }
 
   function saveBatch() {
@@ -344,25 +418,6 @@
     panel.innerText = '⏸ PAUSED - reload to resume';
   }
 
-  function logStatus(reason) {
-    const mem = performance && performance.memory ? performance.memory : null;
-    const rowsInDom = container ? container.querySelectorAll('[data-pagelet="MWMessageRow"]').length : -1;
-    console.log('[STAT]', reason, {
-      cycle,
-      currentBatch: currentBatch.length,
-      totalCaptured,
-      totalSkipped,
-      totalSaved,
-      totalPruned,
-      rowsInDom,
-      currentSpeed,
-      stallCount,
-      signaturesTracked: capturedRowSignatures.size,
-      usedJSHeapMB: mem ? (mem.usedJSHeapSize / 1048576).toFixed(1) : 'n/a',
-      totalJSHeapMB: mem ? (mem.totalJSHeapSize / 1048576).toFixed(1) : 'n/a'
-    });
-  }
-
   // === MAIN CAPTURE LOOP ===
 
   function captureLoop() {
@@ -372,26 +427,26 @@
 
       rows.forEach((row) => {
         const rect = row.getBoundingClientRect();
-        // Relaxed Constraint: As long as the TOP is within bounds, capture it.
-        // This ensures tall messages that don't fit the screen are caught as soon as they appear.
         if (rect.top < containerRect.top || rect.top > containerRect.bottom) return;
+
+        // Skip if already captured (DOM Flag)
+        if (row.dataset.captured === '1') {
+          totalSkipped++;
+          return;
+        }
 
         const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
         const sender = detectSender(row, defaultSender);
         const media = extractMedia(row);
         const rawText = (row.innerText || '').trim();
 
-        // Check for duplicate (v12.4: with pruning & DOM marker)
-        // Optimization: If we already marked this DOM node, skip immediately (fixes stripMedia duplicate bug)
-        if (row.dataset.captured === '1') {
-          totalSkipped++;
-          return;
-        }
+        // Debug signature on potential new rows
+        debugSignature(sender, rawText, media, row);
 
         const sig = getRowSignature(sender, rawText, media);
         if (pruneSignatures(sig)) {
           totalSkipped++;
-          row.dataset.captured = '1'; // Mark it anyway
+          row.dataset.captured = '1';
           return; 
         }
 
@@ -404,8 +459,10 @@
         });
 
         totalCaptured += 1;
-        row.dataset.captured = '1'; // Mark as handled so we ignore it if stripped
-        stripMedia(row);
+        row.dataset.captured = '1';
+        
+        // Delayed strip
+        setTimeout(() => stripMedia(row), STRIP_DELAY_MS);
       });
 
       if (!CAPTURE_MEDIA) {
@@ -419,7 +476,7 @@
         console.log(`%c📥 SAVED%c: Batch ${batchCounter - 1} complete. Total captured: ${totalCaptured}, skipped: ${totalSkipped}`, 'color:#0af;font-weight:bold', 'color:#888');
       }
 
-      // Update diagnostics every cycle
+      // Update diagnostics
       updateDiagPanel();
 
       container.scrollBy(0, -(container.clientHeight * SCROLL_AMOUNT));
@@ -431,10 +488,9 @@
         return;
       }
 
-      // Adjust speed based on loading
       adjustSpeed();
 
-      // Extra capture passes: wait a bit and scan again to catch settling content
+      // Extra capture passes
       if (EXTRA_CAPTURE_PASSES > 0) {
         setTimeout(() => {
           for (let pass = 0; pass < EXTRA_CAPTURE_PASSES; pass++) {
@@ -444,14 +500,16 @@
               const rect = row.getBoundingClientRect();
               if (rect.top < containerRect.top || rect.top > containerRect.bottom) return;
               
-              // Extra pass check
-              if (row.dataset.captured === '1') return; // Fast skip
+              if (row.dataset.captured === '1') return; // DOM flag check
 
               const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
               const sender = detectSender(row, defaultSender);
               const media = extractMedia(row);
               const rawText = (row.innerText || '').trim();
               
+              // Debug signature
+              debugSignature(sender, rawText, media, row);
+
               const sig = getRowSignature(sender, rawText, media);
               if (pruneSignatures(sig)) {
                 row.dataset.captured = '1';
@@ -467,14 +525,15 @@
               });
               totalCaptured += 1;
               row.dataset.captured = '1';
-              stripMedia(row);
+              
+              // Delayed strip
+              setTimeout(() => stripMedia(row), STRIP_DELAY_MS);
             });
           }
           updateDiagPanel();
-        }, 200); // Wait 200ms for content to settle
+        }, 200); // 200ms pass delay
       }
 
-      // Schedule next cycle with adaptive timing
       scheduleNextCycle();
 
     } catch (err) {
@@ -517,17 +576,16 @@
     isRunning = true;
     panel.style.background = '#28a745';
     panel.innerText = `⚡ Batch ${batchCounter} | ${currentSpeed}ms`;
-    console.log('%c🚀 v12 COLLECTOR STARTED%c\nAdaptive timing: %c' + BASE_SPEED_MS + 'ms%c (base) → %c' + MAX_SPEED_MS + 'ms%c (max)\nDuplicate skip: %cENABLED%c',
+    console.log('%c🚀 v12.5 COLLECTOR STARTED%c\nAdaptive timing: %c' + BASE_SPEED_MS + 'ms%c (base)\nDuplicate protection: %cDataset Marking%c\nStability: %cDimension Freeze%c',
       'color:#0f0;font-weight:bold;font-size:14px', 'color:#888',
-      'color:#0f0', 'color:#888', 'color:#f90', 'color:#888',
-      'color:#0f0;font-weight:bold', 'color:#888'
+      'color:#0f0', 'color:#888',
+      'color:#f90', 'color:#888',
+      'color:#0af', 'color:#888'
     );
     updateDiagPanel();
 
-    // Start capture loop
     scheduleNextCycle();
 
-    // Start prune timer
     pruneTimer = setInterval(() => {
       pruneDOM();
     }, 1500);
