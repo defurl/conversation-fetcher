@@ -39,6 +39,11 @@ TIMESTAMP_REGEX = re.compile(
 )
 TIME_ONLY_REGEX = re.compile(r"^\d{1,2}:\d{2}$")
 
+# Match numeric dates like "11/12/2024, 21:01" (DD/MM/YYYY format)
+NUMERIC_DATE_REGEX = re.compile(
+    r"^\d{1,2}/\d{1,2}/\d{4},?\s+\d{1,2}:\d{2}$"
+)
+
 IGNORE_EXACT = {
     "Enter",
     "Seen",
@@ -100,7 +105,7 @@ def noise_key(url: str) -> str:
 
 
 def is_timestamp(line: str) -> bool:
-    return bool(TIMESTAMP_REGEX.match(line))
+    return bool(TIMESTAMP_REGEX.match(line)) or bool(NUMERIC_DATE_REGEX.match(line))
 
 
 def collect_attachment_counts(rows):

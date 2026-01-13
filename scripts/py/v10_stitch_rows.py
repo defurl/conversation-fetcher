@@ -27,6 +27,16 @@ def part_number(path: Path) -> int:
     return 0
 
 
+def batch_number(path: Path) -> int:
+    """Extract numeric batch number from path like batch19 -> 19"""
+    import re
+    batch_name = path.parent.name
+    m = re.search(r"(\d+)", batch_name)
+    if m:
+        return int(m.group(1))
+    return 0
+
+
 def load_parts(target_dir=None):
     parts = []
     # Ensure search_dir is absolute so globbed paths are compatible with DATA_RAW (absolute)
@@ -46,7 +56,8 @@ def load_parts(target_dir=None):
         print(f"Searching in: {DATA_RAW} (Recursive)")
         iterator = DATA_RAW.rglob(pattern)
 
-    for path in sorted(iterator, key=lambda p: (p.parent.as_posix(), part_number(p))):
+    # Sort by numeric batch number, then by part number
+    for path in sorted(iterator, key=lambda p: (batch_number(p), part_number(p))):
         try:
             with path.open('r', encoding='utf-8') as f:
                 data = json.load(f)

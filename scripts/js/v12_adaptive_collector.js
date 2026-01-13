@@ -152,27 +152,27 @@
   function adjustSpeed() {
     const topY = getTopVisibleRowY();
     const currentScrollHeight = container.scrollHeight;
-    
+
     // Heap Watcher
     const mem = performance && performance.memory ? performance.memory : null;
     if (mem && mem.usedJSHeapSize > mem.jsHeapLimit * HEAP_THRESHOLD_PCT) {
       currentSpeed = Math.min(currentSpeed + 1000, MAX_SPEED_MS);
-      console.warn(`%c⚠️ RAM GUARD%c: Heap usage high (${(mem.usedJSHeapSize/1048576).toFixed(0)}MB). Slowing to ${currentSpeed}ms to allow GC.`, 'color:red;font-weight:bold', 'color:#888');
+      console.warn(`%c⚠️ RAM GUARD%c: Heap usage high (${(mem.usedJSHeapSize / 1048576).toFixed(0)}MB). Slowing to ${currentSpeed}ms to allow GC.`, 'color:red;font-weight:bold', 'color:#888');
     }
 
     // Stall detection
     const contentChanged = (lastTopRowY !== null && topY !== null && Math.abs(topY - lastTopRowY) >= STALL_THRESHOLD_PX) ||
-                           (lastScrollHeight !== 0 && currentScrollHeight > lastScrollHeight);
+      (lastScrollHeight !== 0 && currentScrollHeight > lastScrollHeight);
 
     if (topY !== null && !contentChanged) {
       // Stalled
       stallCount++;
       consecutiveStallCycles++;
-      
+
       const oldSpeed = currentSpeed;
       currentSpeed = Math.min(currentSpeed + SPEED_INCREMENT, MAX_SPEED_MS);
       console.log(`%c⏳ STALL #${stallCount}%c: Content not loading. Speed: ${oldSpeed}ms → ${currentSpeed}ms`, 'color:#f90;font-weight:bold', 'color:#888');
-      
+
       // Nudge
       if (consecutiveStallCycles >= MAX_STALL_CYCLES && currentSpeed >= MAX_SPEED_MS) {
         totalNudges++;
@@ -185,7 +185,7 @@
       const wasStalled = stallCount > 0;
       stallCount = 0;
       consecutiveStallCycles = 0;
-      
+
       const oldSpeed = currentSpeed;
       currentSpeed = Math.max(BASE_SPEED_MS, currentSpeed - SPEED_DECREMENT);
       if (wasStalled && currentSpeed < oldSpeed) {
@@ -206,13 +206,13 @@
       }
       // v12.5 Fix: Freeze dimensions
       if (img.getBoundingClientRect) {
-          const rect = img.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-              img.style.width = `${rect.width}px`;
-              img.style.height = `${rect.height}px`;
-              img.style.objectFit = 'contain';
-              img.style.backgroundColor = '#ccc'; // Visual placeholder
-          }
+        const rect = img.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          img.style.width = `${rect.width}px`;
+          img.style.height = `${rect.height}px`;
+          img.style.objectFit = 'contain';
+          img.style.backgroundColor = '#ccc'; // Visual placeholder
+        }
       }
       img.removeAttribute('src');
       img.removeAttribute('srcset');
@@ -320,22 +320,22 @@
 
   // Debug: Log signature creation to find why dupes aren't skipped
   function debugSignature(sender, rawText, media, row) {
-      if (cycle < 2) return; // Only log after first scroll
-      const sig = getRowSignature(sender, rawText, media);
-      const isDup = capturedRowSignatures.has(sig);
-      const isMarked = row.dataset.captured === '1';
-      
-      if (!isDup && !isMarked) {
-          // This row is considered "NEW" by logic.
-          // Check if we have a similar signature (fuzzy match?)
-          // Log it to see if it SHOULD have been a dup.
-          // Only log first 3 per cycle to avoid spam
-          if (Math.random() < 0.05) {
-            console.log(`%c[SIG CHECK] New: ${sig.slice(0, 50)}...`, 'color:pink');
-            console.log('   -> DOM Marked?', isMarked);
-            console.log('   -> In Set?', isDup);
-          }
+    if (cycle < 2) return; // Only log after first scroll
+    const sig = getRowSignature(sender, rawText, media);
+    const isDup = capturedRowSignatures.has(sig);
+    const isMarked = row.dataset.captured === '1';
+
+    if (!isDup && !isMarked) {
+      // This row is considered "NEW" by logic.
+      // Check if we have a similar signature (fuzzy match?)
+      // Log it to see if it SHOULD have been a dup.
+      // Only log first 3 per cycle to avoid spam
+      if (Math.random() < 0.05) {
+        console.log(`%c[SIG CHECK] New: ${sig.slice(0, 50)}...`, 'color:pink');
+        console.log('   -> DOM Marked?', isMarked);
+        console.log('   -> In Set?', isDup);
       }
+    }
   }
 
   function pruneDOM() {
@@ -346,49 +346,49 @@
       if (!row || row.dataset.hollowed === '1') return false;
       const rect = row.getBoundingClientRect();
       const h = rect.height || row.offsetHeight || 40;
-      
+
       // v12.7: Don't strip media if it causes crash, but DO hollow out
       // To save RAM, we must remove the complex DOM nodes.
       // Fix scroll jump: When removing items ABOVE viewport, scroll position usually jumps.
       // We must adjust scrollTop to compensate, OR use `content-visibility: auto`.
-      
+
       stripMedia(row); // Remove images (heavy)
-      
+
       const placeholder = document.createElement('div');
       placeholder.style.height = `${h}px`;
       placeholder.style.width = '100%';
       placeholder.style.pointerEvents = 'none';
       placeholder.dataset.hollowed = '1';
       // v12.7: Visual placeholder to see what was pruned
-      placeholder.style.border = '1px dashed #444'; 
+      placeholder.style.border = '1px dashed #444';
       placeholder.textContent = `[Pruned: ${h.toFixed(0)}px]`;
       placeholder.style.color = '#666';
       placeholder.style.fontSize = '10px';
-      
+
       row.replaceWith(placeholder);
       return true;
     };
 
     const rows = container.querySelectorAll('[data-pagelet="MWMessageRow"]');
     let hollowed = 0;
-    
+
     // v12.7: Aggressive Pruning - Prune everything ABOVE the top + buffer
     // Only keep 2 screens above viewport for scroll up context
     const PRUNE_TOP_BUFFER = containerRect.height * 2;
-    
+
     rows.forEach((row) => {
       const rect = row.getBoundingClientRect();
-      
+
       // Prune if far ABOVE viewport (Old messages) -> Primary RAM saver
       if (rect.bottom < containerRect.top - PRUNE_TOP_BUFFER) {
         if (hollowRow(row)) hollowed += 1;
       }
       // Prune if far BELOW viewport (Future?) - unlikely in scroll up, but safe measure
       else if (rect.top > containerRect.bottom + PRUNE_PX) {
-         if (hollowRow(row)) hollowed += 1;
+        if (hollowRow(row)) hollowed += 1;
       }
     });
-    
+
     if (hollowed > 0) console.log(`🧹 Hollowed ${hollowed} rows`);
   }
 
@@ -447,7 +447,7 @@
         if (pruneSignatures(sig)) {
           totalSkipped++;
           row.dataset.captured = '1';
-          return; 
+          return;
         }
 
         currentBatch.push({
@@ -460,7 +460,7 @@
 
         totalCaptured += 1;
         row.dataset.captured = '1';
-        
+
         // Delayed strip
         setTimeout(() => stripMedia(row), STRIP_DELAY_MS);
       });
@@ -499,23 +499,23 @@
             rows.forEach((row) => {
               const rect = row.getBoundingClientRect();
               if (rect.top < containerRect.top || rect.top > containerRect.bottom) return;
-              
+
               if (row.dataset.captured === '1') return; // DOM flag check
 
               const defaultSender = rect.left - containerRect.left > containerRect.width * 0.5 ? 'You' : 'Partner';
               const sender = detectSender(row, defaultSender);
               const media = extractMedia(row);
               const rawText = (row.innerText || '').trim();
-              
+
               // Debug signature
               debugSignature(sender, rawText, media, row);
 
               const sig = getRowSignature(sender, rawText, media);
               if (pruneSignatures(sig)) {
                 row.dataset.captured = '1';
-                return; 
+                return;
               }
-              
+
               currentBatch.push({
                 y: rect.top,
                 sender,
@@ -525,7 +525,7 @@
               });
               totalCaptured += 1;
               row.dataset.captured = '1';
-              
+
               // Delayed strip
               setTimeout(() => stripMedia(row), STRIP_DELAY_MS);
             });
